@@ -3,12 +3,15 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /app
 
 # Copy csproj and restore dependencies
-COPY *.csproj ./
+COPY backend/*.csproj ./backend/
+WORKDIR /app/backend
 RUN dotnet restore
 
 # Copy everything else and build
-COPY . ./
-RUN dotnet publish -c Release -o out
+WORKDIR /app
+COPY backend/ ./backend/
+WORKDIR /app/backend
+RUN dotnet publish -c Release -o /app/out
 
 # Stage 2: Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
