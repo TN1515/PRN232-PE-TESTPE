@@ -17,8 +17,11 @@ WORKDIR /app
 # Copy the published app from build stage
 COPY --from=build /app/out .
 
-# Expose port (Render uses PORT environment variable)
+# Set environment variables
 ENV ASPNETCORE_URLS=http://+:$PORT
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+# Expose port (Render uses PORT environment variable)
 EXPOSE $PORT
 
 # Run the application
