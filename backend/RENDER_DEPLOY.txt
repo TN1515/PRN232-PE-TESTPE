@@ -1,0 +1,159 @@
+# Render Deployment Configuration
+
+## Deploy Backend on Render
+
+### Step 1: Create New Web Service on Render
+1. Go to [Render Dashboard](https://dashboard.render.com/)
+2. Click **"New +"** → **"Web Service"**
+3. Connect your GitHub repository
+
+### Step 2: Configure Web Service Settings
+
+**Basic Settings:**
+- **Name:** `post-api` (or your preferred name)
+- **Region:** Choose closest to your users
+- **Branch:** `main` (or your default branch)
+- **Root Directory:** `backend`
+- **Runtime:** `Docker`
+
+**Build Settings:**
+- **Dockerfile Path:** `backend/Dockerfile`
+
+**Environment Settings:**
+- **Instance Type:** Free (or paid tier for production)
+
+### Step 3: Add Environment Variables
+
+Click **"Advanced"** → **"Add Environment Variable"**
+
+Add the following variables:
+
+```
+ASPNETCORE_ENVIRONMENT=Production
+ConnectionStrings__DefaultConnection=<your-postgresql-connection-string>
+```
+
+**PostgreSQL Connection String Format:**
+```
+Host=<host>;Port=5432;Database=<dbname>;Username=<username>;Password=<password>;SSL Mode=Require;
+```
+
+### Step 4: Add PostgreSQL Database
+
+**Option A: Use Render PostgreSQL (Recommended)**
+1. In Render Dashboard, click **"New +"** → **"PostgreSQL"**
+2. Configure database settings:
+   - **Name:** `post-database`
+   - **Database:** `postdb`
+   - **User:** `postuser`
+   - **Region:** Same as your web service
+   - **PostgreSQL Version:** 15 or later
+3. After creation, copy the **Internal Database URL**
+4. Update your web service environment variable:
+   ```
+   ConnectionStrings__DefaultConnection=<Internal-Database-URL>
+   ```
+
+**Option B: External PostgreSQL**
+Use any PostgreSQL provider (AWS RDS, Azure, etc.) and add connection string.
+
+### Step 5: Deploy
+
+1. Click **"Create Web Service"**
+2. Render will:
+   - Build your Docker image
+   - Deploy the container
+   - Assign a public URL: `https://your-service-name.onrender.com`
+
+### Step 6: Run Migrations
+
+After first deployment, you need to run migrations:
+
+**Option 1: Using Render Shell**
+1. Go to your web service in Render Dashboard
+2. Click **"Shell"** tab
+3. Run:
+```bash
+dotnet ef database update
+```
+
+**Option 2: Add migration to startup**
+Add this to `Program.cs` before `app.Run()`:
+```csharp
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    db.Database.Migrate();
+}
+```
+
+### Step 7: Test Your API
+
+Your API will be available at:
+```
+https://your-service-name.onrender.com/api/posts
+```
+
+Test with:
+```bash
+curl https://your-service-name.onrender.com/api/posts
+```
+
+## Environment Variables Reference
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `ASPNETCORE_ENVIRONMENT` | Application environment | `Production` |
+| `ConnectionStrings__DefaultConnection` | PostgreSQL connection string | `Host=...;Port=5432;Database=postdb;...` |
+| `PORT` | Port (auto-set by Render) | `10000` |
+
+## Health Check (Optional)
+
+Add to your web service settings:
+- **Health Check Path:** `/api/posts`
+
+## Troubleshooting
+
+### Issue: Database connection fails
+- Verify PostgreSQL connection string in environment variables
+- Ensure SSL Mode is set correctly
+- Check if database is in same region as web service
+
+### Issue: App crashes on startup
+- Check Render logs in Dashboard
+- Verify all environment variables are set
+- Ensure migrations have been run
+
+### Issue: Port binding error
+- Make sure Dockerfile uses `ENV ASPNETCORE_URLS=http://+:$PORT`
+- Render automatically sets `PORT` environment variable
+
+## Cost Considerations
+
+**Free Tier:**
+- Web Service: Spins down after 15 minutes of inactivity
+- PostgreSQL: 90-day expiration, limited storage
+- Good for development/testing
+
+**Paid Tier:**
+- Always-on service
+- Better performance
+- No PostgreSQL expiration
+- Recommended for production
+
+## Continuous Deployment
+
+Once configured, Render automatically deploys when you push to your connected branch:
+1. Push code to GitHub
+2. Render detects changes
+3. Automatically builds and deploys
+4. Zero downtime deployment
+
+## API Documentation
+
+After deployment, access Swagger UI at:
+```
+https://your-service-name.onrender.com/swagger
+```
+
+(Only available if `ASPNETCORE_ENVIRONMENT=Development`)

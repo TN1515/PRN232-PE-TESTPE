@@ -1,0 +1,200 @@
+# Docker Build and Run Instructions
+
+## Prerequisites
+- Docker installed on your machine
+- PostgreSQL database (local or remote)
+
+## Build Docker Image
+
+Navigate to the backend folder and build the image:
+
+```bash
+cd backend
+docker build -t post-api:latest .
+```
+
+### Build with specific tag:
+```bash
+docker build -t post-api:v1.0.0 .
+```
+
+## Run Docker Container
+
+### Option 1: Run with environment variables (recommended)
+
+```bash
+docker run -d \
+  -p 5000:8080 \
+  -e ASPNETCORE_ENVIRONMENT=Production \
+  -e ConnectionStrings__DefaultConnection="Host=host.docker.internal;Port=5432;Database=postdb;Username=postgres;Password=yourpassword" \
+  --name post-api-container \
+  post-api:latest
+```
+
+### Option 2: Run with Docker Compose (recommended for local development)
+
+Create a `docker-compose.yml` file in the backend folder:
+
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: post-postgres
+    environment:
+      POSTGRES_DB: postdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: yourpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    container_name: post-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=postdb;Username=postgres;Password=yourpassword"
+    ports:
+      - "5000:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+```
+
+Then run:
+```bash
+docker-compose up -d
+```
+
+## Verify Container is Running
+
+```bash
+docker ps
+```
+
+You should see your container listed.
+
+## Check Container Logs
+
+```bash
+docker logs post-api-container
+```
+
+Or for docker-compose:
+```bash
+docker-compose logs api
+```
+
+## Access the API
+
+Once running, access your API at:
+```
+http://localhost:5000/api/posts
+```
+
+Swagger UI (if in Development mode):
+```
+http://localhost:5000/swagger
+```
+
+## Run Database Migrations
+
+### Option 1: Execute inside container
+```bash
+docker exec -it post-api-container dotnet ef database update
+```
+
+### Option 2: Using docker-compose
+```bash
+docker-compose exec api dotnet ef database update
+```
+
+## Stop Container
+
+```bash
+docker stop post-api-container
+```
+
+Or for docker-compose:
+```bash
+docker-compose down
+```
+
+## Remove Container
+
+```bash
+docker rm post-api-container
+```
+
+## Remove Image
+
+```bash
+docker rmi post-api:latest
+```
+
+## Troubleshooting
+
+### Issue: Cannot connect to PostgreSQL
+- If PostgreSQL is on your host machine, use `host.docker.internal` instead of `localhost`
+- Ensure PostgreSQL accepts connections from Docker network
+- Verify connection string is correct
+
+### Issue: Port already in use
+Change the host port:
+```bash
+docker run -d -p 5001:8080 ...
+```
+
+### Issue: Container exits immediately
+Check logs:
+```bash
+docker logs post-api-container
+```
+
+### Issue: Database migrations fail
+Ensure database is accessible and connection string is correct:
+```bash
+docker exec -it post-api-container dotnet ef database update --verbose
+```
+
+## Production Considerations
+
+1. **Use secrets management** for sensitive data (connection strings, API keys)
+2. **Use multi-stage builds** (already implemented in Dockerfile)
+3. **Run as non-root user** for security
+4. **Set resource limits**:
+   ```bash
+   docker run -d \
+     --memory="512m" \
+     --cpus="0.5" \
+     -p 5000:8080 \
+     post-api:latest
+   ```
+5. **Use health checks**:
+   ```bash
+   docker run -d \
+     --health-cmd="curl -f http://localhost:8080/api/posts || exit 1" \
+     --health-interval=30s \
+     --health-timeout=10s \
+     --health-retries=3 \
+     -p 5000:8080 \
+     post-api:latest
+   ```
+
+## Push to Docker Hub (Optional)
+
+```bash
+# Tag image
+docker tag post-api:latest yourusername/post-api:latest
+
+# Login to Docker Hub
+docker login
+
+# Push image
+docker push yourusername/post-api:latest
+```
